@@ -11,7 +11,8 @@ class CoordinateModeEnum(StrEnum):
     WGS84 = "WGS84"
     
 class HeightModeEnum(StrEnum):
-    EGM96 = "EGM96"
+    # EGM96 = "EGM96"
+    WGS84 = "WGS84"
     RELATIVE = "relativeToStartPoint"
     AGL = "aboveGroundLevel"
     REAL_TIME_FOLLOW_SURFACE = "realTimeFollowSurface" # only supported by M3x

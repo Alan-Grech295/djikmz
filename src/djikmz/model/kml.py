@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field   
 from .mission_config import MissionConfig
-from .coordinate_system_param import CoordinateSystemParam
+from .coordinate_system_param import CoordinateSystemParam, HeightModeEnum
 from datetime import datetime
 from .heading_param import WaypointHeadingParam 
 from .turn_param import WaypointTurnMode
@@ -13,6 +13,9 @@ ATTR_NOT_IN_FOLDER = [
     "wpml:createTime",
     "wpml:updateTime",
     "wpml:missionConfig",
+    "wpml:waylineId",
+    "wpml:autoFlightSpeed",
+    "wpml:executeHeightMode",
 ]
 
 class StrEnum(str, Enum):
@@ -59,6 +62,23 @@ class KML(BaseModel):
         serialization_alias="templateId",
         description="ID of the KML template, must be 0 for now",
         ge=0, le=0
+    )
+    wayline_id: int = Field(
+        default=0,
+        serialization_alias="waylineId",
+        description="Waylines ID. Note: The ID is unique within a kmz file. It is recommended to increment it monotonically and continuously from 0.",
+        ge=0, le=65535
+    )
+    auto_flight_speed: float = Field(
+        default=0,
+        serialization_alias="autoFlightSpeed",
+        description="Global waylines flight speed",
+        ge=0
+    )
+    execute_height_mode: HeightModeEnum = Field(
+        default=HeightModeEnum.WGS84,
+        serialization_alias="executeHeightMode",
+        description="Execute height mode",
     )
     coordinate_system_param: CoordinateSystemParam = Field(
         default_factory=CoordinateSystemParam,
@@ -147,7 +167,7 @@ class KML(BaseModel):
         print(clean_data)
         return cls(**clean_data, waypoints=waypoints)
     
-    def to_xml(self) -> str:
+    def to_xml(self, pretty=True) -> str:
         """Convert the KML to an XML string."""
         xml_dict = self.to_dict()
         xml_dict = {
@@ -157,7 +177,18 @@ class KML(BaseModel):
                 "Document": xml_dict
             }
         }
-        return xmltodict.unparse(xml_dict, pretty=True)
+        return xmltodict.unparse(xml_dict, pretty=pretty)
+
+    @staticmethod
+    def dict_to_xml(dict, pretty=True) -> str:
+        xml_dict = {
+            'kml': {
+                "@xmlns": "http://www.opengis.net/kml/2.2",
+                "@xmlns:wpml": "http://www.dji.com/wpmz/1.0.3",
+                "Document": dict
+            }
+        }
+        return xmltodict.unparse(xml_dict, pretty=pretty)
     
     @classmethod
     def from_xml(cls, xml_data: str) -> 'KML':

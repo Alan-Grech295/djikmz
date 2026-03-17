@@ -15,7 +15,7 @@ from .model.mission_config import (
 )
 from .model.coordinate_system_param import CoordinateSystemParam, CoordinateModeEnum, HeightModeEnum, PositionTypeEnum
 from .model.action_group import ActionGroup, ActionTrigger, TriggerType
-from .model.action import  RotateYawAction, GimbalRotateAction, HoverAction, TakePhotoAction 
+from .model.action import RotateYawAction, GimbalRotateAction, HoverAction, TakePhotoAction
 import zipfile
 import io
 
@@ -117,7 +117,7 @@ class HardwareError(Exception):
 
 class WaypointBuilder:
     """Builder for configuring individual waypoints with actions."""
-    
+
     def __init__(self, parent_task: 'DroneTask', waypoint: Waypoint):
         self._task = parent_task
         self._waypoint = waypoint
@@ -140,32 +140,32 @@ class WaypointBuilder:
         self._waypoint.use_global_turn_param = 0
         self._waypoint.turn_param = WaypointTurnParam(
             waypoint_turn_mode=mapping[turn_mode],
-            waypoint_turn_damping_dist=0.2 if turn_mode == "early_turn" else None  
+            waypoint_turn_damping_dist=0.2 if turn_mode == "early_turn" else None
         )
         return self
-    
+
     def height(self, height: float) -> 'WaypointBuilder':
         """Set the height for this waypoint (overrides global height)."""
         self._waypoint.height = height
         self._waypoint.use_global_height = 0
         return self
-    
+
     def speed(self, speed: float) -> 'WaypointBuilder':
         """Set the flight speed for this waypoint (overrides global speed)."""
         self._waypoint.speed = speed
         self._waypoint.use_global_speed = 0
         return self
-    
+
     def take_photo(self, suffix: Optional[str] = "", lens: Optional[str] = None) -> 'WaypointBuilder':
         """Add a take photo action at this waypoint."""
         action = TakePhotoAction(
             action_id=0,  # Will be assigned at build time
             file_suffix=suffix,
-            
+
         )
         self._actions.append(action)
         return self
-    
+
     def hover(self, duration: float) -> 'WaypointBuilder':
         """Add a hover action at this waypoint."""
         action = HoverAction(
@@ -187,11 +187,11 @@ class WaypointBuilder:
             raise ValueError("Heading angle must be between -180 and 180 degrees")
         action = RotateYawAction(
             action_id=0,  # Will be assigned at build time
-            aircraft_heading= angle,
-            direction= 'clockwise')  
+            aircraft_heading=angle,
+            direction='clockwise')
         self._actions.append(action)
         return self
-    
+
     def gimbal_down(self, angle: float) -> 'WaypointBuilder':
         """Point gimbal down to specified absolute angle.
         
@@ -205,7 +205,7 @@ class WaypointBuilder:
         )
         self._actions.append(action)
         return self
-    
+
     def gimbal_up(self, angle: float) -> 'WaypointBuilder':
         """Point gimbal up to specified absolute angle.
         
@@ -219,7 +219,7 @@ class WaypointBuilder:
         )
         self._actions.append(action)
         return self
-    
+
     def gimbal_front(self) -> 'WaypointBuilder':
         """Point gimbal straight forward (0 degrees pitch)."""
         action = GimbalRotateAction(
@@ -229,7 +229,7 @@ class WaypointBuilder:
         )
         self._actions.append(action)
         return self
-    
+
     def gimbal_pitch(self, angle: float) -> 'WaypointBuilder':
         """Set gimbal to specific pitch angle.
         
@@ -243,7 +243,7 @@ class WaypointBuilder:
         )
         self._actions.append(action)
         return self
-    
+
     def gimbal_yaw(self, angle: float) -> 'WaypointBuilder':
         """Set gimbal to specific yaw angle.
         
@@ -257,7 +257,7 @@ class WaypointBuilder:
         )
         self._actions.append(action)
         return self
-    
+
     def gimbal_rotate(self, pitch: float = None, yaw: float = None, roll: float = None) -> 'WaypointBuilder':
         """Set gimbal to specific pitch, yaw, and/or roll angles.
         TODO: seems in the App, the roll is not used. 
@@ -268,57 +268,57 @@ class WaypointBuilder:
             roll: Roll angle in degrees
         """
         action = GimbalRotateAction(action_id=0)  # Will be assigned at build time
-        
+
         if pitch is not None:
             action.gimbal_pitch_rotate_enable = 1
             action.gimbal_pitch_rotate_angle = pitch
-            
+
         if yaw is not None:
             action.gimbal_yaw_rotate_enable = 1
             action.gimbal_yaw_rotate_angle = yaw
-            
+
         if roll is not None:
             action.gimbal_roll_rotate_enable = 1
             action.gimbal_roll_rotate_angle = roll
-            
+
         self._actions.append(action)
         return self
-    
-    def fly_to(self, latitude: float, longitude: float, height: float|None=None) -> 'WaypointBuilder':
+
+    def fly_to(self, latitude: float, longitude: float, height: float | None = None) -> 'WaypointBuilder':
         """Add another waypoint and return its builder."""
         return self._task.fly_to(latitude, longitude, height)
-    
+
     def build(self) -> KML:
         """Build the final KML mission."""
         return self._task.build()
-    
+
     def to_kmz(self, filename: str) -> None:
         """Save the mission as a KMZ file."""
         self._task.to_kmz(filename)
-    
+
     def _finalize_actions(self, action_id_start: int) -> int:
         """Finalize actions for this waypoint and return next action ID."""
         if not self._actions:
             return action_id_start
-        
+
         # Assign action IDs
         for i, action in enumerate(self._actions):
             action.action_id = action_id_start + i
-        
+
         # Create action group
         self._waypoint.action_group = ActionGroup(
             group_id=self._waypoint.waypoint_id,
             trigger=ActionTrigger(type=TriggerType.REACH_POINT),
             actions=self._actions
         )
-        
+
         return action_id_start + len(self._actions)
 
 
 class DroneTask:
     """Main builder for creating DJI drone missions."""
-    
-    def __init__(self, drone_model: str, pilot: str = "Pilot"):
+
+    def __init__(self, drone_model: str, pilot: str = "Pilot", config: Optional[dict] = None):
         """Initialize a new drone mission.
         
         Args:
@@ -326,36 +326,36 @@ class DroneTask:
             pilot: Name of the pilot
         """
         # Validate drone model
-        if drone_model not in DRONE_CONFIGS:
+        if drone_model not in DRONE_CONFIGS and config is None:
             supported = ", ".join(DRONE_CONFIGS.keys())
             raise ValueError(
                 f"Unsupported drone model: {drone_model}. "
                 f"Supported models: {supported}"
             )
-        
+
         self.drone_model = drone_model
-        self.drone_config = DRONE_CONFIGS[drone_model]
-        
+        self.drone_config = DRONE_CONFIGS[drone_model] if drone_model in DRONE_CONFIGS else config
+
         # Mission metadata
         self.pilot = pilot
         self.mission_name = "Untitled Mission"
-        
+
         # Flight parameters with defaults
         self._flight_speed = self.drone_config["default_speed"]
         self._flight_height = self.drone_config["default_height"]
         self._turn_mode = WaypointTurnMode.TURN_AT_POINT
-        
+
         # Waypoint storage
         self._waypoints: List[Waypoint] = []
         self._current_waypoint: Optional[Waypoint] = None
-        
+
         # Technical configuration with defaults
         self._coordinate_system = CoordinateSystemParam(
             coordinate_system=CoordinateModeEnum.WGS84,
             height_mode=HeightModeEnum.RELATIVE,
             position_type=PositionTypeEnum.GPS
         )
-        
+
         self._mission_config = MissionConfig(
             fly_to_wayline_mode=FlyToWaylineMode.SAFELY,
             finish_action=FinishAction.GO_HOME,
@@ -371,17 +371,17 @@ class DroneTask:
     def __len__(self) -> int:
         """Return the number of waypoints in the mission."""
         return len(self._waypoints)
-    
+
     def name(self, mission_name: str) -> 'DroneTask':
         """Set the mission name."""
         self.mission_name = mission_name
         return self
-    
+
     def speed(self, speed: float) -> 'DroneTask':
         """Set the global flight speed in m/s."""
         self._flight_speed = speed
         return self
-    
+
     def altitude(self, height: float) -> 'DroneTask':
         """Set the global flight altitude in meters."""
         self._flight_height = height
@@ -399,7 +399,6 @@ class DroneTask:
         self._turn_mode = mapping[turn_mode]
         return self
 
-    
     def coordinate_system(self, positioning_type: str = "GPS") -> 'DroneTask':
         """Configure coordinate system (GPS, RTK, or Qianxun).
         This is not useful in current DJI Pilot app, and not affect the task. so it's not included in readme.
@@ -409,13 +408,13 @@ class DroneTask:
             "RTK": PositionTypeEnum.RTK,
             "Qianxun": PositionTypeEnum.QIANXUN
         }
-        
+
         if positioning_type not in mapping:
             raise ValueError(f"Invalid positioning type: {positioning_type}")
-        
+
         self._coordinate_system.position_type = mapping[positioning_type]
         return self
-    
+
     def payload(self, payload_model: str, position: int = 0) -> 'DroneTask':
         """Configure payload/camera system.
         
@@ -425,17 +424,17 @@ class DroneTask:
         """
         # Automatically generate mapping from PayloadModel enum
         payload_mapping = {member.name: member for member in PayloadModel}
-        
+
         if payload_model not in payload_mapping:
             supported = ", ".join(payload_mapping.keys())
             raise ValueError(f"Unsupported payload model: {payload_model}. Supported: {supported}")
-        
+
         self._mission_config.payload_info = PayloadInfo(
             payload_model=payload_mapping[payload_model],
             position=position
         )
         return self
-    
+
     def return_home_on_signal_loss(self, enable: bool = True) -> 'DroneTask':
         """Configure behavior when RC signal is lost."""
         if enable:
@@ -443,7 +442,7 @@ class DroneTask:
         else:
             self._mission_config.rclost_action = RCLostAction.HOVER
         return self
-    
+
     def finish_action(self, action: str = "return_home") -> 'DroneTask':
         """Set what to do when mission is complete."""
         mapping = {
@@ -452,14 +451,14 @@ class DroneTask:
             "land": FinishAction.AUTOLAND,
             "restart": FinishAction.GOTO_FIRST_WAYPOINT
         }
-        
+
         if action not in mapping:
             raise ValueError(f"Invalid finish action: {action}")
-        
+
         self._mission_config.finish_action = mapping[action]
         return self
-    
-    def fly_to(self, latitude: float, longitude: float, height: float|None = None) -> WaypointBuilder:
+
+    def fly_to(self, latitude: float, longitude: float, height: float | None = None) -> WaypointBuilder:
         """Add a waypoint to fly to."""
         waypoint = Waypoint(
             latitude=latitude,
@@ -470,33 +469,33 @@ class DroneTask:
         )
         self._waypoints.append(waypoint)
         self._current_waypoint = waypoint
-        
+
         builder = WaypointBuilder(self, waypoint)
         # Store reference for later action finalization
         setattr(waypoint, '_waypoint_builder', builder)
         return builder
-    
+
     def build(self) -> KML:
         """Build the final KML mission file."""
         # Validation
         errors = self._validate_configuration()
         if errors:
             raise ValidationError(f"Mission validation failed: {errors}")
-        
+
         # Hardware detection
         self._detect_and_validate_hardware()
-        
+
         # Assign waypoint indices
         for index, waypoint in enumerate(self._waypoints):
             waypoint.waypoint_id = index
-        
+
         # Assign action IDs globally
         global_action_id = 0
         for waypoint in self._waypoints:
             if hasattr(waypoint, '_waypoint_builder'):
                 builder = getattr(waypoint, '_waypoint_builder')
                 global_action_id = builder._finalize_actions(global_action_id)
-        
+
         # Build KML with correct field names
         kml = KML(
             author=self.pilot,
@@ -504,55 +503,58 @@ class DroneTask:
             update_time=int(datetime.now().timestamp() * 1000),
             mission_config=self._mission_config,
             coordinate_system_param=self._coordinate_system,
-            global_turn_mode= self._turn_mode,
+            global_turn_mode=self._turn_mode,
             global_speed=self._flight_speed,
             global_height=self._flight_height,
             waypoints=self._waypoints
         )
-        
+
         return kml
-    
-    def to_kmz(self, filename: Optional[str]) -> None:
+
+    def to_kmz(self, filename: Optional[str], pretty=True) -> None:
         """Save the mission as a KMZ file."""
         if not filename:
             filename = f"{self.mission_name}.kmz"
         kml = self.build()
         # Serialize KML to XML string
-        kml_xml = kml.to_xml()
+        xml_dict = kml.to_dict()
+        template_kml_xml = KML.dict_to_xml({k: v for k, v in xml_dict.items() if k != "Folder"}, pretty=pretty)
+        waylines_kml_xml = KML.dict_to_xml(xml_dict, pretty=pretty)
 
         # Write to KMZ (ZIP) with structure wpmz/template.kml
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as kmz:
-            kmz.writestr("wpmz/template.kml", kml_xml)
-    
+            kmz.writestr("wpmz/template.kml", template_kml_xml)
+            kmz.writestr("wpmz/waylines.wpml", waylines_kml_xml)
+
     def _validate_configuration(self) -> List[str]:
         """Validate mission configuration and return list of errors."""
         errors = []
-        
+
         # Basic mission validation
         if not self._waypoints:
             errors.append("Mission must have at least one waypoint")
-        
+
         # Speed validation
         max_speed = self.drone_config["max_speed"]
         if self._flight_speed > max_speed:
             errors.append(f"Speed {self._flight_speed} m/s exceeds drone limit of {max_speed} m/s")
-        
+
         # Height validation (basic sanity check)
         if self._flight_height < 0:
             errors.append("Flight altitude cannot be negative")
-        
+
         # RTK validation
-        if (self._coordinate_system.position_type == PositionTypeEnum.RTK and 
-            not self.drone_config["supports_rtk"]):
+        if (self._coordinate_system.position_type == PositionTypeEnum.RTK and
+                not self.drone_config["supports_rtk"]):
             errors.append(f"RTK positioning not supported on {self.drone_model}")
-        
+
         # Waypoint validation
         for i, waypoint in enumerate(self._waypoints):
             if waypoint.speed and waypoint.speed > max_speed:
                 errors.append(f"Waypoint {i} speed exceeds drone limit")
-        
+
         return errors
-    
+
     def _detect_and_validate_hardware(self):
         """Validate hardware configuration."""
         # TODO: Additional hardware checks go here:

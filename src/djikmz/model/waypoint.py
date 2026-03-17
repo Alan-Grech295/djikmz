@@ -64,7 +64,7 @@ class Waypoint(BaseModel):
     )
     height: Optional[float] = Field(
         None,
-        serialization_alias="height",
+        serialization_alias="executeHeight",
         description="Altitude in meters above takeoff point"
     )
     ellipsoid_height: Optional[float] = Field(
