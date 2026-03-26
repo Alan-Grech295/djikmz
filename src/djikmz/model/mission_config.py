@@ -34,6 +34,7 @@ class RCLostAction(str, Enum):
         return self.value
     
 class DroneModel(str, Enum):
+    Mavic2Pro = "Mavic2Pro"
     M350 = "M350"
     M300 = "M300"
     M30 = "M30"
@@ -47,6 +48,7 @@ class DroneModel(str, Enum):
         return self.value
 
 MODEL_TO_VAL = {
+    DroneModel.Mavic2Pro: [44, None],
     DroneModel.M350: [89, None],
     DroneModel.M300: [60, None],
     DroneModel.M30: [67, 0],

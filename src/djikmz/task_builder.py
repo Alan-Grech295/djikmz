@@ -21,6 +21,15 @@ import io
 
 # Drone configurations with defaults
 DRONE_CONFIGS = {
+    "Mavic2Pro": {
+        "model": DroneModel.Mavic2Pro,
+        "default_height": 80.0,
+        "default_speed": 8.0,
+        "max_speed": 15.0,
+        "supports_rtk": False,
+        "takeoff_security_height": 2.0,
+        "default_payload": None
+    },
     "M350": {
         "model": DroneModel.M350,
         "default_height": 100.0,
