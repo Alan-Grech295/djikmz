@@ -143,8 +143,6 @@ class KML(BaseModel):
             field_class = cls.model_fields[field_name].annotation
             if hasattr(field_class, 'from_dict'):
                 clean_data[field_name] = field_class.from_dict(field_value) if isinstance(field_value, dict) else field_value
-        
-        print(clean_data)
         return cls(**clean_data, waypoints=waypoints)
     
     def to_xml(self) -> str:
