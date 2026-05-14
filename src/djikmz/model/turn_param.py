@@ -5,10 +5,11 @@ This module provides classes for managing waypoint turn behavior,
 including different turn modes and their specific parameters.
 """
 
-from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, Dict, Any, Union
+from pydantic import Field, field_validator, model_validator
 from enum import Enum
 import xmltodict
+from .utils import WpmlModel
 
 class StrEnum(str, Enum):
     """Base class for string enums."""
@@ -24,7 +25,7 @@ class WaypointTurnMode(StrEnum):
     CURVED_TURN_WITH_STOP = "toPointAndStopWithContinuityCurvature"
 
 
-class WaypointTurnParam(BaseModel):
+class WaypointTurnParam(WpmlModel):
     """
     Waypoint turn parameter configuration.
     
@@ -74,46 +75,14 @@ class WaypointTurnParam(BaseModel):
         return self
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary with XML-compatible format."""
-        result = {
-            f"wpml:waypointTurnMode": self.waypoint_turn_mode.value
-        }
-        
-        if self.waypoint_turn_damping_dist is not None:
-            result[f"wpml:waypointTurnDampingDist"] = self.waypoint_turn_damping_dist
-        
-        return result
-    
+        return self.to_wpml_dict()
+
     def to_xml(self) -> str:
-        """Convert to XML string."""
-        xml_dict = self.to_dict()
-        return xmltodict.unparse(xml_dict, pretty=True, full_document=False)
-    
+        return xmltodict.unparse(self.to_dict(), pretty=True, full_document=False)
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WaypointTurnParam":
-        """Create from dictionary with XML data."""
-        # Generate alias to field mapping automatically
-        alias_to_field = {}
-        for field_name, field_info in cls.model_fields.items():
-            alias = field_info.serialization_alias or field_name
-            alias_to_field[alias] = field_name
-        
-        clean_data = {}
-        
-        # Process each field, removing wpml: prefix and mapping aliases
-        for key, value in data.items():
-            clean_key = key.replace("wpml:", "")
-            
-            # Map alias to actual field name
-            field_name = alias_to_field.get(clean_key, clean_key)
-            
-            # Convert values to appropriate types
-            if field_name == 'waypoint_turn_damping_dist' and value is not None:
-                clean_data[field_name] = float(value)
-            else:
-                clean_data[field_name] = value
-        
-        return cls(**clean_data)
+        return cls(**cls._from_wpml_dict(data))
     
     @classmethod
     def from_xml(cls, xml_data: str) -> "WaypointTurnParam":

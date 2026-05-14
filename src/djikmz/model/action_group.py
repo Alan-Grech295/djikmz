@@ -1,8 +1,9 @@
 import xmltodict
 from .action import Action
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from typing import Dict, Any, List, Optional, Union
 from enum import Enum
+from .utils import WpmlModel
 
 class TriggerType(str, Enum):
     def __str__(self):
@@ -12,7 +13,7 @@ class TriggerType(str, Enum):
     MULTIPLE_TIMING = "multipleTiming"
     MULTIPLE_DISTANCE = "multipleDistance"
 
-class ActionTrigger(BaseModel):
+class ActionTrigger(WpmlModel):
     type: TriggerType|str = Field(
         default=TriggerType.REACH_POINT,
         serialization_alias="actionTriggerType",
@@ -32,23 +33,16 @@ class ActionTrigger(BaseModel):
                     "time in second or distance in meter respectively"
     )
     def to_dict(self) -> Dict[str, Any]:
-        """Convert the ActionTrigger to a dictionary."""
-        d = self.model_dump(by_alias=True, exclude_none=True)
-        return {f"wpml:{key}": value for key, value in d.items() if value is not None}
+        return self.to_wpml_dict()
 
     def to_xml(self) -> str:
-        """Convert the ActionTrigger to an XML string."""
-        xml_dict = self.to_dict()
-        return xmltodict.unparse(xml_dict, pretty=True, full_document=False)
-    
+        return xmltodict.unparse(self.to_dict(), pretty=True, full_document=False)
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any] = None):
-        """Create ActionTrigger from a dictionary."""
         if data is None:
-            data = {}
-        trigger_type = TriggerType(data.get("wpml:actionTriggerType", TriggerType.REACH_POINT))
-        param = data.get("wpml:actionTriggerParam", None)
-        return cls(type=trigger_type, param=param)
+            return cls()
+        return cls(**cls._from_wpml_dict(data))
     
     @classmethod
     def from_xml(cls, xml_data: str):
@@ -64,7 +58,7 @@ class ActionTrigger(BaseModel):
             param = float(param)  
         return cls(type=trigger_type, param=param)
 
-class ActionGroup(BaseModel):
+class ActionGroup(WpmlModel):
     """
     Represents a group of actions to be executed together.
     This is used to encapsulate multiple actions in a single command.
@@ -115,14 +109,9 @@ class ActionGroup(BaseModel):
         return self
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert the ActionGroup to a dictionary."""
-        # the action and trigger fields need to use their own to_dict
-        actions_dict = [action.to_dict() for action in self.actions]
-        trigger_dict = self.trigger.to_dict() if self.trigger else {}
-        data = self.model_dump(by_alias=True, exclude_none=True, exclude={"actions", "trigger"})
-        data = {f"wpml:{key}": value for key, value in data.items() if value is not None}
-        data["wpml:action"] = actions_dict
-        data["wpml:actionTrigger"] = trigger_dict
+        data = self.to_wpml_dict(exclude={"actions", "trigger"})
+        data["wpml:action"] = [action.to_dict() for action in self.actions]
+        data["wpml:actionTrigger"] = self.trigger.to_dict() if self.trigger else {}
         return data
     
     def to_xml(self) -> str:
@@ -152,33 +141,12 @@ class ActionGroup(BaseModel):
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ActionGroup":
-        """Create ActionGroup from a dictionary."""
-        # Generate alias to field mapping automatically
-        alias_to_field = {}
-        for field_name, field_info in cls.model_fields.items():
-            alias = field_info.serialization_alias or field_name
-            alias_to_field[alias] = field_name
-        
-        clean_data = {}
-        
-        # Process each field, removing wpml: prefix and mapping aliases
-        for key, value in data.items():
-            clean_key = key.replace("wpml:", "")
-            
-            # Map alias to actual field name
-            field_name = alias_to_field.get(clean_key, clean_key)
-            
-            # Handle special cases for complex types
-            if field_name == 'actions' and value:
-                if isinstance(value, list):
-                    clean_data[field_name] = [Action.from_dict(action) for action in value]
-                else:
-                    clean_data[field_name] = [Action.from_dict(value)]
-            elif field_name == 'trigger' and value:
-                clean_data[field_name] = ActionTrigger.from_dict(value)
-            else:
-                clean_data[field_name] = value
-        
+        clean_data = cls._from_wpml_dict(data)
+        if clean_data.get('actions'):
+            value = clean_data['actions']
+            clean_data['actions'] = [Action.from_dict(a) for a in value] if isinstance(value, list) else [Action.from_dict(value)]
+        if clean_data.get('trigger'):
+            clean_data['trigger'] = ActionTrigger.from_dict(clean_data['trigger'])
         return cls(**clean_data)
     
     def _renumber_actions(self):

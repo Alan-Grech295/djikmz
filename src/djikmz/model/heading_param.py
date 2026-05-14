@@ -5,9 +5,10 @@ This module provides classes for managing waypoint heading behavior,
 including different heading modes and their specific parameters.
 """
 
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, Dict, Any, Union
 from pydantic import BaseModel, Field, field_validator, model_validator, model_serializer
 from enum import Enum
+from .utils import WpmlModel
 
 
 class WaypointHeadingMode(str, Enum):
@@ -86,7 +87,7 @@ class WaypointPoiPoint(BaseModel):
         )
 
 
-class WaypointHeadingParam(BaseModel):
+class WaypointHeadingParam(WpmlModel):
     """
     Waypoint heading parameter configuration.
     
@@ -164,38 +165,17 @@ class WaypointHeadingParam(BaseModel):
         return self
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary with XML-compatible format."""
-        result = {
-            f"wpml:{WaypointHeadingParam.model_fields['waypoint_heading_mode'].serialization_alias}": self.waypoint_heading_mode.value,
-            f"wpml:{WaypointHeadingParam.model_fields['waypoint_heading_path_mode'].serialization_alias}": self.waypoint_heading_path_mode.value
-        }
-        
-        if self.waypoint_heading_angle is not None:
-            result[f"wpml:{WaypointHeadingParam.model_fields['waypoint_heading_angle'].serialization_alias}"] = self.waypoint_heading_angle
-        
+        result = self.to_wpml_dict(exclude={'waypoint_poi_point'})
         if self.waypoint_poi_point is not None:
-            result[f"wpml:{WaypointHeadingParam.model_fields['waypoint_poi_point'].serialization_alias}"] = self.waypoint_poi_point.to_string()
-        
+            alias = type(self).model_fields['waypoint_poi_point'].serialization_alias
+            result[f"wpml:{alias}"] = self.waypoint_poi_point.to_string()
         return result
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WaypointHeadingParam":
-        """Create from dictionary with XML data."""
-        # Handle both prefixed and non-prefixed keys
-        clean_data = {}
-        
-        for key, value in data.items():
-            clean_key = key.replace("wpml:", "")
-            
-            if clean_key == "waypointHeadingMode":
-                clean_data["waypoint_heading_mode"] = value
-            elif clean_key == "waypointHeadingAngle":
-                clean_data["waypoint_heading_angle"] = float(value)
-            elif clean_key == "waypointPoiPoint":
-                clean_data["waypoint_poi_point"] = WaypointPoiPoint.from_string(str(value))
-            elif clean_key == "waypointHeadingPathMode":
-                clean_data["waypoint_heading_path_mode"] = value
-        
+        clean_data = cls._from_wpml_dict(data)
+        if clean_data.get('waypoint_poi_point') is not None:
+            clean_data['waypoint_poi_point'] = WaypointPoiPoint.from_string(str(clean_data['waypoint_poi_point']))
         return cls(**clean_data)
     
     def to_xml(self) -> str:

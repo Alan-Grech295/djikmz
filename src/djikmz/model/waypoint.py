@@ -1,10 +1,11 @@
 from pydantic import BaseModel, Field, field_validator, computed_field, model_serializer
-from typing import List, Dict, Any, Optional, Union
+from typing import Dict, Any, Optional
 import xmltodict
 
 from .action_group import ActionGroup
 from .heading_param import WaypointHeadingParam
 from .turn_param import WaypointTurnParam
+from .utils import WpmlModel
 
 class Point(BaseModel):
     """Base class for geographic points."""
@@ -45,7 +46,7 @@ class Point(BaseModel):
         return cls(latitude=latitude, longitude=longitude)
         
 
-class Waypoint(BaseModel):
+class Waypoint(WpmlModel):
     latitude: float = Field(
         ...,
         description="Latitude in decimal degrees (-90 to 90)",
@@ -162,41 +163,22 @@ class Waypoint(BaseModel):
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Waypoint':
-        """Create a Waypoint instance from a dictionary."""
-        # Create a clean data dict for the constructor
         clean_data = {}
-        
-        # Handle coordinate extraction from Point
+
         if 'Point' in data:
             coordinates = data['Point']['coordinates'].split(',')
             clean_data['longitude'] = float(coordinates[0])
             clean_data['latitude'] = float(coordinates[1])
-        
-        alias_to_field = {}
-        for field_name, field_info in cls.model_fields.items():
-            alias = field_info.serialization_alias or field_name
-            alias_to_field[alias] = field_name
-        
-        # Process each field, removing wpml: prefix and mapping aliases
-        for key, value in data.items():
-            if key == 'Point':
-                continue  # Already handled above
-                
-            clean_key = key.replace("wpml:", "")
-            
-            # Map alias to actual field name
-            field_name = alias_to_field.get(clean_key, clean_key)
-            
-            # Handle special cases for complex types
-            if field_name == 'action_group' and value:
-                clean_data[field_name] = ActionGroup.from_dict(value)
-            elif field_name == 'heading_param' and value:
-                clean_data[field_name] = WaypointHeadingParam.from_dict(value)
-            elif field_name == 'turn_param' and value:
-                clean_data[field_name] = WaypointTurnParam.from_dict(value)
-            else:
-                clean_data[field_name] = value
-        
+
+        clean_data.update(cls._from_wpml_dict({k: v for k, v in data.items() if k != 'Point'}))
+
+        if clean_data.get('action_group'):
+            clean_data['action_group'] = ActionGroup.from_dict(clean_data['action_group'])
+        if clean_data.get('heading_param'):
+            clean_data['heading_param'] = WaypointHeadingParam.from_dict(clean_data['heading_param'])
+        if clean_data.get('turn_param'):
+            clean_data['turn_param'] = WaypointTurnParam.from_dict(clean_data['turn_param'])
+
         return cls(**clean_data)
     
     @classmethod
