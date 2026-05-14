@@ -141,6 +141,38 @@ class TestTaskBuilderActions:
         action = waypoint.action_group.actions[0]
         assert action.action_type == "hover"
         assert action.hover_time == 5.0
+
+    def test_record_and_focus_actions(self):
+        """Test start_record, focus, and stop_record actions."""
+        task = (DroneTask("M30T", "Test Pilot")
+               .fly_to(37.7749, -122.4194)
+               .start_record("video_segment", "zoom")
+               .focus(
+                   focus_x=0.5,
+                   focus_y=0.5,
+                   focus_region_width=0.3,
+                   focus_region_height=0.3,
+                   point_focus=True,
+               )
+               .stop_record("zoom"))
+
+        kml = task.build()
+        actions = kml.waypoints[0].action_group.actions
+        assert len(actions) == 3
+
+        assert actions[0].action_type == "startRecord"
+        assert actions[0].file_suffix == "video_segment"
+        assert actions[0].payload_lens == "zoom"
+
+        assert actions[1].action_type == "focus"
+        assert actions[1].is_point_focus == 1
+        assert actions[1].focus_x == 0.5
+        assert actions[1].focus_y == 0.5
+        assert actions[1].focus_region_width == 0.3
+        assert actions[1].focus_region_height == 0.3
+
+        assert actions[2].action_type == "stopRecord"
+        assert actions[2].payload_lens == "zoom"
         
     def test_gimbal_actions(self):
         """Test various gimbal actions."""

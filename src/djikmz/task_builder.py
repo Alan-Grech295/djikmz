@@ -15,7 +15,15 @@ from .model.mission_config import (
 )
 from .model.coordinate_system_param import CoordinateSystemParam, CoordinateModeEnum, HeightModeEnum, PositionTypeEnum
 from .model.action_group import ActionGroup, ActionTrigger, TriggerType
-from .model.action import  RotateYawAction, GimbalRotateAction, HoverAction, TakePhotoAction 
+from .model.action import (
+    RotateYawAction,
+    GimbalRotateAction,
+    HoverAction,
+    TakePhotoAction,
+    StartRecordAction,
+    StopRecordAction,
+    FocusAction,
+)
 import zipfile
 import io
 
@@ -161,7 +169,7 @@ class WaypointBuilder:
         action = TakePhotoAction(
             action_id=0,  # Will be assigned at build time
             file_suffix=suffix,
-            
+            payload_lens=lens
         )
         self._actions.append(action)
         return self
@@ -171,6 +179,47 @@ class WaypointBuilder:
         action = HoverAction(
             action_id=0,  # Will be assigned at build time
             hover_time=duration  # HoverAction expects float in seconds
+        )
+        self._actions.append(action)
+        return self
+
+    def start_record(self, suffix: Optional[str] = "", lens: Optional[str] = None) -> 'WaypointBuilder':
+        """Add a start recording action at this waypoint."""
+        action = StartRecordAction(
+            action_id=0,  # Will be assigned at build time
+            file_suffix=suffix,
+            payload_lens=lens,
+        )
+        self._actions.append(action)
+        return self
+
+    def stop_record(self, lens: Optional[str] = None) -> 'WaypointBuilder':
+        """Add a stop recording action at this waypoint."""
+        action = StopRecordAction(
+            action_id=0,  # Will be assigned at build time
+            payload_lens=lens,
+        )
+        self._actions.append(action)
+        return self
+
+    def focus(
+        self,
+        focus_x: float = 0.4,
+        focus_y: float = 0.4,
+        focus_region_width: float = 0.2,
+        focus_region_height: float = 0.2,
+        point_focus: bool = False,
+        infinite_focus: bool = False,
+    ) -> 'WaypointBuilder':
+        """Add a focus action at this waypoint."""
+        action = FocusAction(
+            action_id=0,  # Will be assigned at build time
+            is_point_focus=1 if point_focus else 0,
+            focus_x=focus_x,
+            focus_y=focus_y,
+            focus_region_width=focus_region_width,
+            focus_region_height=focus_region_height,
+            is_infinite_focus=1 if infinite_focus else 0,
         )
         self._actions.append(action)
         return self
