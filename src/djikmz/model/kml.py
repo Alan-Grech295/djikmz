@@ -1,10 +1,11 @@
-from pydantic import BaseModel, Field   
+from pydantic import Field
 from .mission_config import MissionConfig
 from .coordinate_system_param import CoordinateSystemParam, HeightModeEnum
 from datetime import datetime
-from .heading_param import WaypointHeadingParam 
+from .heading_param import WaypointHeadingParam
 from .turn_param import WaypointTurnMode
 from .waypoint import Waypoint
+from .utils import WpmlModel
 from enum import Enum
 import xmltodict
 
@@ -30,7 +31,7 @@ class GimbalPitchMode(StrEnum):
     POINT_SETTING = "usePointSetting"
 
 
-class KML(BaseModel):
+class KML(WpmlModel):
     author: str = Field(
         default="Zey",
         description="Author of the KML file."
@@ -144,27 +145,20 @@ class KML(BaseModel):
     @classmethod
     def from_dict(cls, data: dict) -> 'KML':
         """Create a KML instance from a dictionary."""
-        alias_to_field = {}
-        for field_name, field_info in cls.model_fields.items():
-            alias = field_info.serialization_alias or field_name
-            alias_to_field[alias] = field_name
         folder_data = data.pop("Folder", {})
-        data = {**data, **folder_data}
-        # Remove wpml: prefix from keys
-        clean_data = {k.replace("wpml:", ""): v for k, v in data.items()}
-        # Extract waypoints and convert them to Waypoint instances
-        waypoints_data = clean_data.pop("Placemark", [])
+        merged = {**data, **folder_data}
+
+        waypoints_data = merged.pop("Placemark", [])
         waypoints = [Waypoint.from_dict(wp) for wp in waypoints_data]
-        # Create the KML instance
-        # Generate alias to field mapping automatically
-        clean_data = {alias_to_field.get(k, k): v for k, v in clean_data.items()}
-        # if a field class have from_dict method, call it 
+
+        clean_data = cls._from_wpml_dict(merged)
+
         for field_name, field_value in clean_data.items():
-            field_class = cls.model_fields[field_name].annotation
-            if hasattr(field_class, 'from_dict'):
-                clean_data[field_name] = field_class.from_dict(field_value) if isinstance(field_value, dict) else field_value
-        
-        print(clean_data)
+            if field_name in cls.model_fields:
+                field_class = cls.model_fields[field_name].annotation
+                if hasattr(field_class, 'from_dict') and isinstance(field_value, dict):
+                    clean_data[field_name] = field_class.from_dict(field_value)
+
         return cls(**clean_data, waypoints=waypoints)
     
     def to_xml(self, pretty=True) -> str:

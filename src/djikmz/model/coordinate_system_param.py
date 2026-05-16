@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field, model_serializer
+from pydantic import Field, model_serializer
 from enum import Enum
 import xmltodict
+from .utils import WpmlModel
 
 class StrEnum(str, Enum):
     """Base class for string enums."""
@@ -24,7 +25,7 @@ class PositionTypeEnum(StrEnum):
     CUSTOM = "Custom"
 
 
-class CoordinateSystemParam(BaseModel):
+class CoordinateSystemParam(WpmlModel):
     "Coordinate system parameters for the waypoints"
     coordinate_system: CoordinateModeEnum = Field(
         default=CoordinateModeEnum.WGS84,
@@ -44,36 +45,11 @@ class CoordinateSystemParam(BaseModel):
     # surfaceRelativeHeight     float           m relative height to the surface
 
     def to_dict(self) -> dict:
-        """Convert the CoordinateSystemParam to a dictionary."""
-        # data = self.model_dump(by_alias=True, exclude_none=True)
-        data = {field.serialization_alias or name: getattr(self, name) for name, field in type(self).model_fields.items() if getattr(self, name) is not None}
-        for k, v in data.items():
-            if isinstance(v, Enum):
-                data[k] = str(v)
-            elif isinstance(v, BaseModel):
-                data[k] = v.model_dump(by_alias=True, exclude_none=True)
-        return {f"wpml:{k}": v for k, v in data.items()}
-    
+        return self.to_wpml_dict()
+
     @classmethod
     def from_dict(cls, data: dict) -> 'CoordinateSystemParam':
-        """Create a CoordinateSystemParam instance from a dictionary."""
-        # Generate alias to field mapping automatically
-        alias_to_field = {}
-        for field_name, field_info in cls.model_fields.items():
-            alias = field_info.serialization_alias or field_name
-            alias_to_field[alias] = field_name
-        
-        clean_data = {}
-        
-        # Process each field, removing wpml: prefix and mapping aliases
-        for key, value in data.items():
-            clean_key = key.replace("wpml:", "")
-            
-            # Map alias to actual field name
-            field_name = alias_to_field.get(clean_key, clean_key)
-            clean_data[field_name] = value
-        
-        return cls(**clean_data)
+        return cls(**cls._from_wpml_dict(data))
     
     def to_xml(self) -> str:
         """Convert the CoordinateSystemParam to XML format."""

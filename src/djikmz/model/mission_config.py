@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, computed_field, model_serializer
 from typing import Optional, Dict, Any, Union
 from enum import Enum
 import xmltodict
+from .utils import WpmlModel
 
 class FlyToWaylineMode(str, Enum):
     SAFELY = "safely"
@@ -147,7 +148,7 @@ class DroneInfo(BaseModel):
         return cls.from_dict(drone_data)
     
 
-class PayloadInfo(BaseModel):
+class PayloadInfo(WpmlModel):
     payload_model: PayloadModel = Field(
         default=PayloadModel.M3M,
         serialization_alias="payloadEnumValue",
@@ -158,33 +159,17 @@ class PayloadInfo(BaseModel):
         description="Position of the payload on the drone. 0 is default position, 1 is the front right for dual mount, 2 is the top")
     
     def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert the PayloadInfo to a dictionary.
-        """
-        data = {field.serialization_alias or name: getattr(self,name) for name , field in type(self).model_fields.items() if getattr(self, name) is not None}
-        data = {f"wpml:{k}": v for k, v in data.items()}
-        return data
-    
+        return self.to_wpml_dict()
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'PayloadInfo':
-        # Handle both prefixed and non-prefixed keys
-        clean_data = {k.replace("wpml:", ""): v for k, v in data.items()}
-        params = {}
-        
-        for field_name, field_info in cls.model_fields.items():
-            alias = field_info.serialization_alias or field_name
-            if alias in clean_data:
-                value = clean_data[alias]
-                # Convert payload enum value to PayloadModel
-                if field_name == 'payload_model':
-                    try:
-                        params[field_name] = PayloadModel(int(value))
-                    except (ValueError, TypeError):
-                        params[field_name] = PayloadModel.M3M  # Default fallback
-                else:
-                    params[field_name] = value
-        
-        return cls(**params)
+        clean_data = cls._from_wpml_dict(data)
+        if 'payload_model' in clean_data:
+            try:
+                clean_data['payload_model'] = PayloadModel(int(clean_data['payload_model']))
+            except (ValueError, TypeError):
+                clean_data['payload_model'] = PayloadModel.M3M
+        return cls(**clean_data)
     
     def to_xml(self) -> str:
         """Convert the PayloadInfo to XML format."""
@@ -208,7 +193,7 @@ class PayloadInfo(BaseModel):
         return self.to_dict()
     
 
-class MissionConfig(BaseModel):
+class MissionConfig(WpmlModel):
     """
     Mission configuration for DJI task
     """
@@ -262,75 +247,35 @@ class MissionConfig(BaseModel):
         description="Payload information for the mission. "
     )
     def to_dict(self) -> Dict[str, Any]:
-        """Convert the MissionConfig to a dictionary."""
-        data = {field.serialization_alias or name: getattr(self,name) for name , field in type(self).model_fields.items() if getattr(self, name) is not None}
-        data['exitOnRCLost'] = self.exit_on_rc_lost # Add computed field
+        data = self.to_wpml_dict(exclude={"rclost_action", "drone_info", "payload_info"})
+        data["wpml:exitOnRCLost"] = self.exit_on_rc_lost
         if self.execute_rc_lost_action is not None:
-            data['executeRCLostAction'] = self.execute_rc_lost_action  # Add computed field
-        data.pop("rclost_action", None)  # Remove computed field from serialization
-        for k, v in data.items():
-            if isinstance(v, Enum):
-                data[k] = str(v)
-            elif isinstance(v, BaseModel):
-                data[k] = v.model_dump()
-        data = {f"wpml:{k}": v for k, v in data.items()}
-        
-        # Handle complex nested objects
+            data["wpml:executeRCLostAction"] = self.execute_rc_lost_action
         if self.drone_info:
             data["wpml:droneInfo"] = self.drone_info.to_dict()
         if self.payload_info:
             data["wpml:payloadInfo"] = self.payload_info.to_dict()
-        
         return data
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'MissionConfig':
-        """Create a MissionConfig instance from a dictionary."""
-        # Generate alias to field mapping automatically
-        alias_to_field = {}
-        for field_name, field_info in cls.model_fields.items():
-            alias = field_info.serialization_alias or field_name
-            alias_to_field[alias] = field_name
-        
-        clean_data = {}
-        
-        # Handle RC lost action mapping from computed fields
         exit_on_rc_lost = data.get("wpml:exitOnRCLost")
         execute_rc_lost_action = data.get("wpml:executeRCLostAction")
-        
-        if exit_on_rc_lost is not None:
-            if exit_on_rc_lost == "goContinue":
-                clean_data["rclost_action"] = RCLostAction.CONTINUE
-            elif exit_on_rc_lost == "executeLostAction" and execute_rc_lost_action:
-                # Map the executeRCLostAction value back to RCLostAction enum
-                if execute_rc_lost_action == "handover":
-                    clean_data["rclost_action"] = RCLostAction.HOVER
-                elif execute_rc_lost_action == "goBack":
-                    clean_data["rclost_action"] = RCLostAction.GO_HOME
-                elif execute_rc_lost_action == "landing":
-                    clean_data["rclost_action"] = RCLostAction.LAND
-                else:
-                    clean_data["rclost_action"] = RCLostAction.CONTINUE  # Default fallback
-        
-        # Process each field, removing wpml: prefix and mapping aliases
-        for key, value in data.items():
-            clean_key = key.replace("wpml:", "")
-            
-            # Skip computed fields as they're handled above
-            if clean_key in ["exitOnRCLost", "executeRCLostAction"]:
-                continue
-            
-            # Map alias to actual field name
-            field_name = alias_to_field.get(clean_key, clean_key)
-            
-            # Handle special cases for complex types
-            if field_name == 'drone_info' and value:
-                clean_data[field_name] = DroneInfo.from_dict(value)
-            elif field_name == 'payload_info' and value:
-                clean_data[field_name] = PayloadInfo.from_dict(value)
-            else:
-                clean_data[field_name] = value
-        
+
+        rc_lost_map = {"handover": RCLostAction.HOVER, "goBack": RCLostAction.GO_HOME, "landing": RCLostAction.LAND}
+
+        clean_data = cls._from_wpml_dict({k: v for k, v in data.items() if k.replace("wpml:", "") not in ("exitOnRCLost", "executeRCLostAction")})
+
+        if exit_on_rc_lost == "goContinue":
+            clean_data["rclost_action"] = RCLostAction.CONTINUE
+        elif exit_on_rc_lost == "executeLostAction" and execute_rc_lost_action:
+            clean_data["rclost_action"] = rc_lost_map.get(execute_rc_lost_action, RCLostAction.CONTINUE)
+
+        if clean_data.get('drone_info'):
+            clean_data['drone_info'] = DroneInfo.from_dict(clean_data['drone_info'])
+        if clean_data.get('payload_info'):
+            clean_data['payload_info'] = PayloadInfo.from_dict(clean_data['payload_info'])
+
         return cls(**clean_data)
     
     def to_xml(self) -> str:
