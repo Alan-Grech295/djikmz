@@ -19,6 +19,34 @@ ATTR_NOT_IN_FOLDER = [
     "wpml:executeHeightMode",
 ]
 
+TEMPLATE_ROOT_ATTRS = [
+    "wpml:author",
+    "wpml:createTime",
+    "wpml:updateTime",
+    "wpml:missionConfig",
+]
+
+TEMPLATE_FOLDER_ATTRS = [
+    "wpml:templateType",
+    "wpml:templateId",
+    "wpml:waylineCoordinateSysParam",
+    "wpml:autoFlightSpeed",
+    "wpml:globalHeight",
+    "wpml:globalWaypointHeadingParam",
+    "wpml:globalWaypointTurnMode",
+    "wpml:globalUseStraightLine",
+    "wpml:globalGimbalPitchMode",
+    "Placemark",
+]
+
+WAYLINES_FOLDER_ATTRS = [
+    "wpml:templateId",
+    "wpml:waylineId",
+    "wpml:autoFlightSpeed",
+    "wpml:executeHeightMode",
+    "Placemark",
+]
+
 class StrEnum(str, Enum):
     """Base class for string enums."""
     def __str__(self):
@@ -126,6 +154,10 @@ class KML(WpmlModel):
 
     def to_dict(self) -> dict:
         """Convert the KML to a dictionary."""
+        return self._to_legacy_dict()
+
+    def _to_flat_dict(self) -> dict:
+        """Convert the KML model into a flat WPML dictionary before file-specific grouping."""
         data = self.model_dump(by_alias=True, exclude_none=True, exclude=['waypoints'])
         data = {f"wpml:{k}": v for k, v in data.items()}
         data['Placemark'] = [wp.to_dict() for wp in self.waypoints]
@@ -135,12 +167,54 @@ class KML(WpmlModel):
                 data[key] = [item.to_dict() if hasattr(item, 'to_dict') else item for item in value]
             elif hasattr(value, 'to_dict'):
                 data[key] = value.to_dict()
+        return data
+
+    def _to_legacy_dict(self) -> dict:
+        data = self._to_flat_dict()
         # move attributes that are not in folder to the root
         root_data = {k: v for k, v in data.items() if k  in ATTR_NOT_IN_FOLDER}
         folder_data = {k: v for k, v in data.items() if k not in ATTR_NOT_IN_FOLDER}
+        if "wpml:autoFlightSpeed" in root_data:
+            folder_data["wpml:autoFlightSpeed"] = root_data["wpml:autoFlightSpeed"]
         # Add folder data under 'Folder' key
         data = {**root_data, "Folder": folder_data,}
         return data
+
+    def to_template_dict(self) -> dict:
+        """Convert the mission to DJI's planning template.kml document body."""
+        data = self._to_flat_dict()
+        root_data = {k: data[k] for k in TEMPLATE_ROOT_ATTRS if k in data}
+        folder_data = {k: data[k] for k in TEMPLATE_FOLDER_ATTRS if k in data}
+        return {**root_data, "Folder": folder_data}
+
+    def to_waylines_dict(self) -> dict:
+        """Convert the mission to DJI's executable waylines.wpml document body."""
+        data = self._to_flat_dict()
+        root_data = {"wpml:missionConfig": self._to_waylines_mission_config(data["wpml:missionConfig"])}
+        folder_data = {k: data[k] for k in WAYLINES_FOLDER_ATTRS if k in data}
+        folder_data["Placemark"] = [self._to_executable_waypoint(wp) for wp in data.get("Placemark", [])]
+        return {**root_data, "Folder": folder_data}
+
+    def _to_waylines_mission_config(self, mission_config: dict) -> dict:
+        """Normalize executable-only mission defaults for waylines.wpml."""
+        config = dict(mission_config)
+        exit_on_rc_lost = config.get("wpml:exitOnRCLost")
+        execute_rc_lost_action = config.get("wpml:executeRCLostAction")
+
+        if exit_on_rc_lost == "goContinue":
+            config["wpml:exitOnRCLost"] = "executeLostAction"
+            config["wpml:executeRCLostAction"] = "hover"
+        elif execute_rc_lost_action == "handover":
+            config["wpml:executeRCLostAction"] = "hover"
+
+        return config
+
+    def _to_executable_waypoint(self, waypoint: dict) -> dict:
+        """Fill executable defaults required by waylines.wpml without mutating the template."""
+        executable = dict(waypoint)
+        executable.setdefault("wpml:executeHeight", self.global_height)
+        executable.setdefault("wpml:waypointSpeed", self.global_speed)
+        return executable
 
     @classmethod
     def from_dict(cls, data: dict) -> 'KML':
@@ -163,15 +237,15 @@ class KML(WpmlModel):
     
     def to_xml(self, pretty=True) -> str:
         """Convert the KML to an XML string."""
-        xml_dict = self.to_dict()
-        xml_dict = {
-            'kml': {
-                "@xmlns": "http://www.opengis.net/kml/2.2",
-                "@xmlns:wpml": "http://www.dji.com/wpmz/1.0.3",
-                "Document": xml_dict
-            }
-        }
-        return xmltodict.unparse(xml_dict, pretty=pretty)
+        return self.dict_to_xml(self.to_dict(), pretty=pretty)
+
+    def to_template_xml(self, pretty=True) -> str:
+        """Convert the KML model to DJI's template.kml XML."""
+        return self.dict_to_xml(self.to_template_dict(), pretty=pretty)
+
+    def to_waylines_xml(self, pretty=True) -> str:
+        """Convert the KML model to DJI's waylines.wpml XML."""
+        return self.dict_to_xml(self.to_waylines_dict(), pretty=pretty)
 
     @staticmethod
     def dict_to_xml(dict, pretty=True) -> str:

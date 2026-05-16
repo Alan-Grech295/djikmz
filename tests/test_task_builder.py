@@ -281,6 +281,57 @@ class TestTaskBuilderKMZGeneration:
         assert "<?xml" in xml_output
         assert "kml" in xml_output
         assert "wpml:" in xml_output
+
+    def test_kmz_contains_template_and_executable_waylines(self):
+        """Test DJI WPML KMZ output contains both required route files."""
+        task = (DroneTask("M30T", "Test Pilot")
+               .name("Split Mission")
+               .speed(8.0)
+               .altitude(60.0)
+               .fly_to(37.7749, -122.4194)
+               .take_photo("start")
+               .fly_to(37.7750, -122.4195))
+
+        with tempfile.NamedTemporaryFile(suffix=".kmz", delete=False) as temp_file:
+            kmz_path = temp_file.name
+
+        try:
+            task.to_kmz(kmz_path)
+
+            with zipfile.ZipFile(kmz_path, "r") as kmz:
+                assert set(kmz.namelist()) == {
+                    "wpmz/template.kml",
+                    "wpmz/waylines.wpml",
+                }
+                template_xml = kmz.read("wpmz/template.kml").decode("utf-8")
+                waylines_xml = kmz.read("wpmz/waylines.wpml").decode("utf-8")
+
+            assert "wpml:templateType" in template_xml
+            assert "wpml:waylineCoordinateSysParam" in template_xml
+            assert "wpml:waylineId" not in template_xml
+            assert "wpml:executeHeightMode" not in template_xml
+
+            assert "wpml:missionConfig" in waylines_xml
+            assert "wpml:waylineId" in waylines_xml
+            assert "wpml:executeHeightMode" in waylines_xml
+            assert "<wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>" in waylines_xml
+            assert "<wpml:executeRCLostAction>hover</wpml:executeRCLostAction>" in waylines_xml
+            assert "wpml:executeHeight>60.0" in waylines_xml
+            assert "wpml:waypointSpeed>8.0" in waylines_xml
+            assert "wpml:templateType" not in waylines_xml
+            assert "wpml:author" not in waylines_xml
+
+            waylines_folder_start = waylines_xml.find("<Folder>")
+            waylines_root_xml = waylines_xml[:waylines_folder_start]
+            assert waylines_folder_start > 0
+            assert "wpml:waylineId" not in waylines_root_xml
+            assert "wpml:autoFlightSpeed" not in waylines_root_xml
+            assert "wpml:executeHeightMode" not in waylines_root_xml
+            assert waylines_xml.find("wpml:waylineId", waylines_folder_start) > waylines_folder_start
+            assert waylines_xml.find("wpml:autoFlightSpeed", waylines_folder_start) > waylines_folder_start
+            assert waylines_xml.find("wpml:executeHeightMode", waylines_folder_start) > waylines_folder_start
+        finally:
+            os.unlink(kmz_path)
         
     def test_real_world_dji_controller_mission(self):
         """

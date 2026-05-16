@@ -574,15 +574,12 @@ class DroneTask:
         if not filename:
             filename = f"{self.mission_name}.kmz"
         kml = self.build()
-        # Serialize KML to XML string
-        xml_dict = kml.to_dict()
-        template_kml_xml = KML.dict_to_xml({k: v for k, v in xml_dict.items() if k != "Folder"}, pretty=pretty)
-        waylines_kml_xml = KML.dict_to_xml(xml_dict, pretty=pretty)
+        template_xml = kml.to_template_xml(pretty=pretty)
+        waylines_xml = kml.to_waylines_xml(pretty=pretty)
 
-        # Write to KMZ (ZIP) with structure wpmz/template.kml
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as kmz:
-            kmz.writestr("wpmz/template.kml", template_kml_xml)
-            kmz.writestr("wpmz/waylines.wpml", waylines_kml_xml)
+            kmz.writestr("wpmz/template.kml", template_xml)
+            kmz.writestr("wpmz/waylines.wpml", waylines_xml)
 
     def _validate_configuration(self) -> List[str]:
         """Validate mission configuration and return list of errors."""
