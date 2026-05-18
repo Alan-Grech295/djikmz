@@ -9,6 +9,8 @@ from .utils import WpmlModel
 from enum import Enum
 import xmltodict
 
+WPML_NAMESPACE = "http://www.dji.com/wpmz/1.0.3"
+
 ATTR_NOT_IN_FOLDER = [
     "wpml:author",
     "wpml:createTime",
@@ -26,25 +28,10 @@ TEMPLATE_ROOT_ATTRS = [
     "wpml:missionConfig",
 ]
 
-TEMPLATE_FOLDER_ATTRS = [
-    "wpml:templateType",
-    "wpml:templateId",
-    "wpml:waylineCoordinateSysParam",
-    "wpml:autoFlightSpeed",
-    "wpml:globalHeight",
-    "wpml:globalWaypointHeadingParam",
-    "wpml:globalWaypointTurnMode",
-    "wpml:globalUseStraightLine",
-    "wpml:globalGimbalPitchMode",
-    "Placemark",
-]
-
 WAYLINES_FOLDER_ATTRS = [
     "wpml:templateId",
-    "wpml:waylineId",
-    "wpml:autoFlightSpeed",
     "wpml:executeHeightMode",
-    "Placemark",
+    "wpml:waylineId",
 ]
 
 class StrEnum(str, Enum):
@@ -183,21 +170,36 @@ class KML(WpmlModel):
     def to_template_dict(self) -> dict:
         """Convert the mission to DJI's planning template.kml document body."""
         data = self._to_flat_dict()
-        root_data = {k: data[k] for k in TEMPLATE_ROOT_ATTRS if k in data}
-        folder_data = {k: data[k] for k in TEMPLATE_FOLDER_ATTRS if k in data}
-        return {**root_data, "Folder": folder_data}
+        return {
+            k: self._to_waylines_mission_config(data[k]) if k == "wpml:missionConfig" else data[k]
+            for k in TEMPLATE_ROOT_ATTRS
+            if k in data
+        }
 
     def to_waylines_dict(self) -> dict:
         """Convert the mission to DJI's executable waylines.wpml document body."""
         data = self._to_flat_dict()
         root_data = {"wpml:missionConfig": self._to_waylines_mission_config(data["wpml:missionConfig"])}
         folder_data = {k: data[k] for k in WAYLINES_FOLDER_ATTRS if k in data}
+        folder_data["wpml:distance"] = 0
+        folder_data["wpml:duration"] = 0
+        folder_data["wpml:autoFlightSpeed"] = data["wpml:autoFlightSpeed"]
         folder_data["Placemark"] = [self._to_executable_waypoint(wp) for wp in data.get("Placemark", [])]
         return {**root_data, "Folder": folder_data}
 
     def _to_waylines_mission_config(self, mission_config: dict) -> dict:
         """Normalize executable-only mission defaults for waylines.wpml."""
-        config = dict(mission_config)
+        source = dict(mission_config)
+        config = {}
+        for key in (
+            "wpml:flyToWaylineMode",
+            "wpml:finishAction",
+            "wpml:exitOnRCLost",
+            "wpml:executeRCLostAction",
+        ):
+            if key in source:
+                config[key] = source[key]
+
         exit_on_rc_lost = config.get("wpml:exitOnRCLost")
         execute_rc_lost_action = config.get("wpml:executeRCLostAction")
 
@@ -207,13 +209,50 @@ class KML(WpmlModel):
         elif execute_rc_lost_action == "handover":
             config["wpml:executeRCLostAction"] = "hover"
 
+        config["wpml:globalTransitionalSpeed"] = self.global_speed
+
+        for key in (
+            "wpml:takeOffSecurityHeight",
+            "wpml:refTakeOffPoint",
+            "wpml:takeOffRefPointAGLHeight",
+            "wpml:droneInfo",
+            "wpml:payloadInfo",
+        ):
+            if key in source:
+                config[key] = source[key]
+
         return config
 
     def _to_executable_waypoint(self, waypoint: dict) -> dict:
         """Fill executable defaults required by waylines.wpml without mutating the template."""
-        executable = dict(waypoint)
-        executable.setdefault("wpml:executeHeight", self.global_height)
-        executable.setdefault("wpml:waypointSpeed", self.global_speed)
+        source = dict(waypoint)
+        executable = {}
+
+        if "Point" in source:
+            executable["Point"] = source["Point"]
+
+        executable["wpml:index"] = source["wpml:index"]
+        executable["wpml:executeHeight"] = source.get("wpml:executeHeight", self.global_height)
+        executable["wpml:waypointSpeed"] = source.get("wpml:waypointSpeed", self.global_speed)
+
+        for key in (
+            "wpml:waypointHeadingParam",
+            "wpml:waypointTurnParam",
+            "wpml:useStraightLine",
+            "wpml:gimbalPitchAngle",
+            "wpml:actionGroup",
+        ):
+            if key in source:
+                executable[key] = source[key]
+
+        executable.setdefault(
+            "wpml:waypointTurnParam",
+            {
+                "wpml:waypointTurnMode": "toPointAndStopWithContinuityCurvature",
+                "wpml:waypointTurnDampingDist": 0,
+            },
+        )
+
         return executable
 
     @classmethod
@@ -252,7 +291,7 @@ class KML(WpmlModel):
         xml_dict = {
             'kml': {
                 "@xmlns": "http://www.opengis.net/kml/2.2",
-                "@xmlns:wpml": "http://www.dji.com/wpmz/1.0.3",
+                "@xmlns:wpml": WPML_NAMESPACE,
                 "Document": dict
             }
         }

@@ -306,8 +306,12 @@ class TestTaskBuilderKMZGeneration:
                 template_xml = kmz.read("wpmz/template.kml").decode("utf-8")
                 waylines_xml = kmz.read("wpmz/waylines.wpml").decode("utf-8")
 
-            assert "wpml:templateType" in template_xml
-            assert "wpml:waylineCoordinateSysParam" in template_xml
+            assert "wpml:missionConfig" in template_xml
+            assert "wpml:globalTransitionalSpeed" in template_xml
+            assert "<Folder>" not in template_xml
+            assert "<Placemark>" not in template_xml
+            assert "wpml:templateType" not in template_xml
+            assert "wpml:waylineCoordinateSysParam" not in template_xml
             assert "wpml:waylineId" not in template_xml
             assert "wpml:executeHeightMode" not in template_xml
 
@@ -316,10 +320,24 @@ class TestTaskBuilderKMZGeneration:
             assert "wpml:executeHeightMode" in waylines_xml
             assert "<wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>" in waylines_xml
             assert "<wpml:executeRCLostAction>hover</wpml:executeRCLostAction>" in waylines_xml
+            assert "wpml:globalTransitionalSpeed" in waylines_xml
+            assert "wpml:distance" in waylines_xml
+            assert "wpml:duration" in waylines_xml
             assert "wpml:executeHeight>60.0" in waylines_xml
             assert "wpml:waypointSpeed>8.0" in waylines_xml
             assert "wpml:templateType" not in waylines_xml
             assert "wpml:author" not in waylines_xml
+            assert "wpml:waylineCoordinateSysParam" not in waylines_xml
+            assert "wpml:useGlobalHeight" not in waylines_xml
+            assert "wpml:useGlobalSpeed" not in waylines_xml
+            assert "wpml:useGlobalHeadingParam" not in waylines_xml
+            assert "wpml:useGlobalTurnParam" not in waylines_xml
+            assert "<wpml:waypointTurnParam>" in waylines_xml
+            assert (
+                "<wpml:waypointTurnMode>toPointAndStopWithContinuityCurvature</wpml:waypointTurnMode>"
+                in waylines_xml
+            )
+            assert "<wpml:waypointTurnDampingDist>0</wpml:waypointTurnDampingDist>" in waylines_xml
 
             waylines_folder_start = waylines_xml.find("<Folder>")
             waylines_root_xml = waylines_xml[:waylines_folder_start]
@@ -330,6 +348,11 @@ class TestTaskBuilderKMZGeneration:
             assert waylines_xml.find("wpml:waylineId", waylines_folder_start) > waylines_folder_start
             assert waylines_xml.find("wpml:autoFlightSpeed", waylines_folder_start) > waylines_folder_start
             assert waylines_xml.find("wpml:executeHeightMode", waylines_folder_start) > waylines_folder_start
+
+            placemark_start = waylines_xml.find("<Placemark>")
+            placemark_xml = waylines_xml[placemark_start:]
+            assert placemark_start > waylines_folder_start
+            assert placemark_xml.find("<Point>") < placemark_xml.find("<wpml:index>")
         finally:
             os.unlink(kmz_path)
         
