@@ -38,6 +38,15 @@ DRONE_CONFIGS = {
         "takeoff_security_height": 2.0,
         "default_payload": None
     },
+    "M4E": {
+        "model": DroneModel.M4E,
+        "default_height": 80.0,
+        "default_speed": 8.0,
+        "max_speed": 15.0,
+        "supports_rtk": True,
+        "takeoff_security_height": 2.0,
+        "default_payload": PayloadModel.M4E  # Integrated M4E camera
+    },
     "M350": {
         "model": DroneModel.M350,
         "default_height": 100.0,
