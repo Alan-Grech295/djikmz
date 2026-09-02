@@ -148,7 +148,7 @@ class TestKML:
             "wpml:globalWaypointHeadingParam",
             "wpml:globalWaypointTurnMode",
             "wpml:globalUseStraightLine",
-            "wpml:globalGimbalPitchMode"
+            "wpml:gimbalPitchMode"
         ]
         
         for element in wpml_elements:
@@ -178,7 +178,7 @@ class TestKML:
         assert xml_output.find("wpml:globalWaypointHeadingParam", folder_start) > folder_start
         assert xml_output.find("wpml:globalWaypointTurnMode", folder_start) > folder_start
         assert xml_output.find("wpml:globalUseStraightLine", folder_start) > folder_start
-        assert xml_output.find("wpml:globalGimbalPitchMode", folder_start) > folder_start
+        assert xml_output.find("wpml:gimbalPitchMode", folder_start) > folder_start
     
     def test_to_xml_roundtrip_basic(self):
         """Test basic XML serialization roundtrip."""
@@ -271,12 +271,13 @@ class TestKMLValidation:
     def test_global_speed_validation(self):
         """Test global speed validation."""
         # Valid speeds
-        KML(global_speed=0.0)
         KML(global_speed=10.0)
         
         # Invalid speed
         with pytest.raises(ValidationError):
             KML(global_speed=-1.0)
+        with pytest.raises(ValidationError):
+            KML(global_speed=0.0)
     
     def test_global_height_validation(self):
         """Test global height validation."""

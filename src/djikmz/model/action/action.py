@@ -59,13 +59,8 @@ class Action(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         data = {field.serialization_alias or name: getattr(self,name) for name , field in type(self).model_fields.items() if getattr(self, name) is not None}
-        header_keys = {
-            field.serialization_alias or name for name, field in Action.model_fields.items()
-        } 
-
-        header = {
-            f"wpml:{key}": data[key] for key in header_keys if key in data
-        }
+        header_keys = ["actionId", "actionActuatorFunc"]
+        header = {f"wpml:{key}": data[key] for key in header_keys if key in data}
         action_params = {
             f"wpml:{key}": value for key, value in data.items() if key not in header_keys
         }

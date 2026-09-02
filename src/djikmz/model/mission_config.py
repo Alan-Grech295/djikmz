@@ -27,7 +27,7 @@ class RCLostAction(str, Enum):
     if use other actions, one have to specify the action in `executeRCLostAction`. using  `hover` `goBack` `landing` etc
     """
     CONTINUE = "goContinue"
-    HOVER = "handover"
+    HOVER = "hover"
     GO_HOME = "goBack"
     LAND = "landing"
 
@@ -265,7 +265,7 @@ class MissionConfig(WpmlModel):
         exit_on_rc_lost = data.get("wpml:exitOnRCLost")
         execute_rc_lost_action = data.get("wpml:executeRCLostAction")
 
-        rc_lost_map = {"handover": RCLostAction.HOVER, "goBack": RCLostAction.GO_HOME, "landing": RCLostAction.LAND}
+        rc_lost_map = {"hover": RCLostAction.HOVER, "goBack": RCLostAction.GO_HOME, "landing": RCLostAction.LAND}
 
         clean_data = cls._from_wpml_dict({k: v for k, v in data.items() if k.replace("wpml:", "") not in ("exitOnRCLost", "executeRCLostAction")})
 

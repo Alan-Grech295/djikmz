@@ -12,7 +12,9 @@ class CoordinateModeEnum(StrEnum):
     WGS84 = "WGS84"
     
 class HeightModeEnum(StrEnum):
-    # EGM96 = "EGM96"
+    EGM96 = "EGM96"
+    # Backward-compatible input used by the host application. template.kml
+    # serializes this as DJI's documented EGM96 planning height mode.
     WGS84 = "WGS84"
     RELATIVE = "relativeToStartPoint"
     AGL = "aboveGroundLevel"
@@ -45,7 +47,10 @@ class CoordinateSystemParam(WpmlModel):
     # surfaceRelativeHeight     float           m relative height to the surface
 
     def to_dict(self) -> dict:
-        return self.to_wpml_dict()
+        data = self.to_wpml_dict()
+        if data.get("wpml:heightMode") == HeightModeEnum.WGS84.value:
+            data["wpml:heightMode"] = HeightModeEnum.EGM96.value
+        return data
 
     @classmethod
     def from_dict(cls, data: dict) -> 'CoordinateSystemParam':

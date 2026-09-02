@@ -8,7 +8,7 @@ with support for enterprise drones and comprehensive validation.
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 
-from .model.kml import KML, WaypointTurnMode, GimbalPitchMode
+from .model.kml import KML, WaypointTurnMode, GimbalPitchMode, ExecuteHeightMode
 from .model.waypoint import Waypoint, Point, WaypointTurnParam
 from .model.mission_config import (
     MissionConfig, DroneModel, DroneInfo, PayloadInfo, PayloadModel, FlyToWaylineMode, FinishAction, RCLostAction
@@ -116,7 +116,7 @@ DRONE_CONFIGS = {
         "default_speed": 8.0,
         "max_speed": 15.0,
         "supports_rtk": False,
-        "takeoff_security_height": 3.0,
+        "takeoff_security_height": 8.0,
         "default_payload": PayloadModel.M3D  # Integrated M3D camera
     },
     "M3TD": {
@@ -125,7 +125,7 @@ DRONE_CONFIGS = {
         "default_speed": 8.0,
         "max_speed": 15.0,
         "supports_rtk": False,
-        "takeoff_security_height": 3.0,
+        "takeoff_security_height": 8.0,
         "default_payload": PayloadModel.M3TD  # Integrated M3TD thermal camera
     }
 }
@@ -505,9 +505,9 @@ class DroneTask:
     def return_home_on_signal_loss(self, enable: bool = True) -> 'DroneTask':
         """Configure behavior when RC signal is lost."""
         if enable:
-            self._mission_config.rclost_action = RCLostAction.CONTINUE
+            self._mission_config.rclost_action = RCLostAction.GO_HOME
         else:
-            self._mission_config.rclost_action = RCLostAction.HOVER
+            self._mission_config.rclost_action = RCLostAction.CONTINUE
         return self
 
     def finish_action(self, action: str = "return_home") -> 'DroneTask':
@@ -564,12 +564,24 @@ class DroneTask:
                 global_action_id = builder._finalize_actions(global_action_id)
 
         # Build KML with correct field names
+        execute_height_modes = {
+            HeightModeEnum.EGM96: ExecuteHeightMode.WGS84,
+            HeightModeEnum.WGS84: ExecuteHeightMode.WGS84,
+            HeightModeEnum.RELATIVE: ExecuteHeightMode.RELATIVE,
+            HeightModeEnum.REAL_TIME_FOLLOW_SURFACE: ExecuteHeightMode.REAL_TIME_FOLLOW_SURFACE,
+        }
+        if self._coordinate_system.height_mode not in execute_height_modes:
+            raise ValidationError(
+                "aboveGroundLevel planning requires terrain-resolved executable heights"
+            )
+
         kml = KML(
             author=self.pilot,
             create_time=int(datetime.now().timestamp() * 1000),
             update_time=int(datetime.now().timestamp() * 1000),
             mission_config=self._mission_config,
             coordinate_system_param=self._coordinate_system,
+            execute_height_mode=execute_height_modes[self._coordinate_system.height_mode],
             global_turn_mode=self._turn_mode,
             global_speed=self._flight_speed,
             global_height=self._flight_height,
@@ -602,6 +614,8 @@ class DroneTask:
         max_speed = self.drone_config["max_speed"]
         if self._flight_speed > max_speed:
             errors.append(f"Speed {self._flight_speed} m/s exceeds drone limit of {max_speed} m/s")
+        if self._flight_speed <= 0:
+            errors.append("Flight speed must be greater than zero")
 
         # Height validation (basic sanity check)
         if self._flight_height < 0:
@@ -614,8 +628,11 @@ class DroneTask:
 
         # Waypoint validation
         for i, waypoint in enumerate(self._waypoints):
-            if waypoint.speed and waypoint.speed > max_speed:
-                errors.append(f"Waypoint {i} speed exceeds drone limit")
+            if waypoint.speed is not None:
+                if waypoint.speed <= 0:
+                    errors.append(f"Waypoint {i} speed must be greater than zero")
+                elif waypoint.speed > max_speed:
+                    errors.append(f"Waypoint {i} speed exceeds drone limit")
 
         return errors
 

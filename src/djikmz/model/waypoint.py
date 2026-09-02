@@ -65,7 +65,7 @@ class Waypoint(WpmlModel):
     )
     height: Optional[float] = Field(
         None,
-        serialization_alias="executeHeight",
+        serialization_alias="height",
         description="Altitude in meters above takeoff point"
     )
     ellipsoid_height: Optional[float] = Field(

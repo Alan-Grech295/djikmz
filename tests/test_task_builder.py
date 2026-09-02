@@ -10,7 +10,6 @@ import sys
 import tempfile
 import os
 import zipfile
-from pathlib import Path
 
 # Add src to path for local imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -308,21 +307,29 @@ class TestTaskBuilderKMZGeneration:
 
             assert "wpml:missionConfig" in template_xml
             assert "wpml:globalTransitionalSpeed" in template_xml
-            assert "<Folder>" not in template_xml
-            assert "<Placemark>" not in template_xml
-            assert "wpml:templateType" not in template_xml
-            assert "wpml:waylineCoordinateSysParam" not in template_xml
+            assert 'xmlns:wpml="http://www.dji.com/wpmz/1.0.2"' in template_xml
+            assert "<Folder>" in template_xml
+            assert "<Placemark>" in template_xml
+            assert "wpml:templateType" in template_xml
+            assert "wpml:waylineCoordinateSysParam" in template_xml
+            assert "wpml:globalHeight>60.0" in template_xml
+            assert "<wpml:globalRTHHeight>60.0</wpml:globalRTHHeight>" in template_xml
+            assert "wpml:height>60.0" in template_xml
+            assert "wpml:useStraightLine" not in template_xml
             assert "wpml:waylineId" not in template_xml
             assert "wpml:executeHeightMode" not in template_xml
 
             assert "wpml:missionConfig" in waylines_xml
+            assert 'xmlns:wpml="http://www.dji.com/wpmz/1.0.2"' in waylines_xml
             assert "wpml:waylineId" in waylines_xml
             assert "wpml:executeHeightMode" in waylines_xml
-            assert "<wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>" in waylines_xml
+            assert "<wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode>" in waylines_xml
+            assert "<wpml:exitOnRCLost>goContinue</wpml:exitOnRCLost>" in waylines_xml
             assert "<wpml:executeRCLostAction>hover</wpml:executeRCLostAction>" in waylines_xml
             assert "wpml:globalTransitionalSpeed" in waylines_xml
-            assert "wpml:distance" in waylines_xml
-            assert "wpml:duration" in waylines_xml
+            assert "<wpml:globalRTHHeight>60.0</wpml:globalRTHHeight>" in waylines_xml
+            assert "wpml:distance" not in waylines_xml
+            assert "wpml:duration" not in waylines_xml
             assert "wpml:executeHeight>60.0" in waylines_xml
             assert "wpml:waypointSpeed>8.0" in waylines_xml
             assert "wpml:templateType" not in waylines_xml
@@ -334,7 +341,7 @@ class TestTaskBuilderKMZGeneration:
             assert "wpml:useGlobalTurnParam" not in waylines_xml
             assert "<wpml:waypointTurnParam>" in waylines_xml
             assert (
-                "<wpml:waypointTurnMode>toPointAndStopWithContinuityCurvature</wpml:waypointTurnMode>"
+                "<wpml:waypointTurnMode>toPointAndStopWithDiscontinuityCurvature</wpml:waypointTurnMode>"
                 in waylines_xml
             )
             assert "<wpml:waypointTurnDampingDist>0</wpml:waypointTurnDampingDist>" in waylines_xml
@@ -353,10 +360,21 @@ class TestTaskBuilderKMZGeneration:
             placemark_xml = waylines_xml[placemark_start:]
             assert placemark_start > waylines_folder_start
             assert placemark_xml.find("<Point>") < placemark_xml.find("<wpml:index>")
+            assert waylines_xml.find("wpml:takeOffSecurityHeight") < waylines_xml.find(
+                "wpml:globalTransitionalSpeed"
+            )
         finally:
             os.unlink(kmz_path)
+
+    def test_dock_mission_uses_dji_minimum_takeoff_height(self):
+        mission = DroneTask("M3D").fly_to(37.7749, -122.4194).build()
+
+        assert mission.mission_config.take_off_height == 8.0
+        assert "<wpml:takeOffSecurityHeight>8.0</wpml:takeOffSecurityHeight>" in (
+            mission.to_waylines_xml()
+        )
         
-    def test_real_world_dji_controller_mission(self):
+    def test_real_world_dji_controller_mission(self, tmp_path):
         """
         Generate a real KMZ file for testing on DJI controller.
         
@@ -401,12 +419,8 @@ class TestTaskBuilderKMZGeneration:
         assert len(kml.waypoints) == 5
         assert kml.mission_config.drone_info.drone_enum_value == 67  # M30T
         
-        # Create test directory
-        test_dir = Path("test_output")
-        test_dir.mkdir(exist_ok=True)
-        
         # Generate KMZ file using the proper method
-        kmz_file = test_dir / "dji_controller_test_mission.kmz"
+        kmz_file = tmp_path / "dji_controller_test_mission.kmz"
         mission.to_kmz(str(kmz_file))
         
         # Verify KMZ file was created and has content
@@ -414,7 +428,7 @@ class TestTaskBuilderKMZGeneration:
         assert kmz_file.stat().st_size > 1000  # Should be substantial content
         
         # Also generate KML for inspection
-        kml_file = test_dir / "dji_controller_test_mission.kml"
+        kml_file = tmp_path / "dji_controller_test_mission.kml"
         xml_content = kml.to_xml()
         with open(kml_file, "w", encoding="utf-8") as f:
             f.write(xml_content)
@@ -423,8 +437,6 @@ class TestTaskBuilderKMZGeneration:
         print(f"📁 KMZ file size: {kmz_file.stat().st_size} bytes")
         print(f"📄 KML file (for inspection): {kml_file}")
         print("🚁 Ready for DJI controller testing!")
-        
-        return kmz_file
         
     def test_enterprise_rtk_mission(self):
         """Test RTK mission for enterprise drones."""
@@ -691,7 +703,7 @@ class TestTaskBuilderTurnModes:
         assert "useGlobalTurnParam>0" in xml_output  # Per-waypoint override
         # assert "waypointTurnDampingDist" in xml_output  # dji's global turn mode does not have damping distance. Meh.
     
-    def test_turn_mode_kmz_generation(self):
+    def test_turn_mode_kmz_generation(self, tmp_path):
         """Test that turn modes work correctly in KMZ file generation."""
         task = (DroneTask("M30T", "Test Pilot")
                .name("Turn Mode Test Mission")
@@ -705,11 +717,7 @@ class TestTaskBuilderTurnModes:
                .fly_to(37.7751, -122.4196)
                    .take_photo("global_flow"))
         
-        # Generate KMZ file
-        test_dir = Path("test_output")
-        test_dir.mkdir(exist_ok=True)
-        
-        kmz_file = test_dir / "turn_mode_test.kmz"
+        kmz_file = tmp_path / "turn_mode_test.kmz"
         task.to_kmz(str(kmz_file))
         
         # Verify file exists and has content

@@ -53,14 +53,14 @@ class TestRCLostAction:
     def test_enum_values(self):
         """Test enum values."""
         assert RCLostAction.CONTINUE == "goContinue"
-        assert RCLostAction.HOVER == "handover"
+        assert RCLostAction.HOVER == "hover"
         assert RCLostAction.GO_HOME == "goBack"
         assert RCLostAction.LAND == "landing"
     
     def test_string_representation(self):
         """Test string representation."""
         assert str(RCLostAction.CONTINUE) == "goContinue"
-        assert str(RCLostAction.HOVER) == "handover"
+        assert str(RCLostAction.HOVER) == "hover"
 
 
 class TestDroneModel:
@@ -314,7 +314,7 @@ class TestMissionConfig:
         config = MissionConfig(rclost_action=RCLostAction.HOVER)
         
         assert config.exit_on_rc_lost == "executeLostAction"
-        assert config.execute_rc_lost_action == "handover"
+        assert config.execute_rc_lost_action == "hover"
     
     def test_computed_fields_go_home(self):
         """Test computed fields when RC lost action is GO_HOME."""
@@ -375,7 +375,7 @@ class TestMissionConfig:
         assert "wpml:payloadInfo" in result
         assert result["wpml:payloadInfo"]["wpml:payloadEnumValue"] == 43
         assert result["wpml:exitOnRCLost"] == "executeLostAction"
-        assert result["wpml:executeRCLostAction"] == "handover"
+        assert result["wpml:executeRCLostAction"] == "hover"
     
     def test_from_dict_continue_action(self):
         """Test from_dict method with continue RC lost action."""
@@ -521,7 +521,7 @@ class TestMissionConfigEdgeCases:
         """Test all RC lost action enum mappings."""
         test_cases = [
             (RCLostAction.CONTINUE, "goContinue", None),
-            (RCLostAction.HOVER, "executeLostAction", "handover"),
+            (RCLostAction.HOVER, "executeLostAction", "hover"),
             (RCLostAction.GO_HOME, "executeLostAction", "goBack"),
             (RCLostAction.LAND, "executeLostAction", "landing")
         ]

@@ -110,8 +110,8 @@ class ActionGroup(WpmlModel):
 
     def to_dict(self) -> Dict[str, Any]:
         data = self.to_wpml_dict(exclude={"actions", "trigger"})
-        data["wpml:action"] = [action.to_dict() for action in self.actions]
         data["wpml:actionTrigger"] = self.trigger.to_dict() if self.trigger else {}
+        data["wpml:action"] = [action.to_dict() for action in self.actions]
         return data
     
     def to_xml(self) -> str:
