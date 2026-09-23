@@ -242,11 +242,12 @@ class WaypointBuilder:
         self._actions.append(action)
         return self
 
-    def heading(self, angle: float) -> 'WaypointBuilder':
+    def heading(self, angle: float, direction: str | None = 'clockwise') -> 'WaypointBuilder':
         """Set the drone's heading (yaw) at this waypoint.
         
         Args:
             angle: Heading angle in degrees (-180~180, 0 = North, 90 = East)
+            direction: Rotation direction, or None for aircraft without path-mode support.
         """
         # This can be implemented using waypointHeadingParam which support
         # automatic rotation direction. But the timing of yaw rotation is ambiguous
@@ -255,7 +256,7 @@ class WaypointBuilder:
         action = RotateYawAction(
             action_id=0,  # Will be assigned at build time
             aircraft_heading=angle,
-            direction='clockwise')
+            direction=direction)
         self._actions.append(action)
         return self
 

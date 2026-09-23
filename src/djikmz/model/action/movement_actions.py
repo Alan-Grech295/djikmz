@@ -2,6 +2,8 @@
 Movement and positioning actions for DJI drones.
 """
 
+from typing import Optional
+
 from pydantic import Field
 from .action import Action, ActionType
 from .registry import register_action
@@ -30,14 +32,14 @@ class RotateYawAction(Action):
         ge=-180.0, le=180.0,
         description="Target aircraft heading in degrees. azimuth angle, 0 is north, 90 is east"
     )
-    direction: str = Field(
+    direction: Optional[str] = Field(
         default='clockwise',
         serialization_alias="aircraftPathMode",
         description="clockwise or counterClockwise"
     )
     @field_validator("direction")
     @classmethod
-    def validate_direction(cls, v: str) -> str:
-        if v not in ['clockwise', 'counterClockwise']:
+    def validate_direction(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ['clockwise', 'counterClockwise']:
             raise ValueError("Invalid direction, must be 'clockwise' or 'counterClockwise'")
         return v
